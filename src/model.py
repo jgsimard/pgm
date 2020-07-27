@@ -2,10 +2,11 @@ import torch
 
 
 class Model(object):
-    def __init__(self):
-        pass
+    def __init__(self, seed=0):
+        self.seed = seed
+        torch.manual_seed(seed)
 
-    def  initialize(self, data):
+    def initialize(self, data):
         pass
 
     def train(self, *args, **kwargs):
@@ -16,8 +17,8 @@ class Model(object):
 
 
 class HiddenVariableModel(Model):
-    def __init__(self):
-        super(HiddenVariableModel, self).__init__()
+    def __init__(self, seed=0):
+        super(HiddenVariableModel, self).__init__(seed)
 
     def expectation(self, *args, **kwargs):
         raise NotImplementedError()

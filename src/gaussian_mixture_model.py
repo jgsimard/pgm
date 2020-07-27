@@ -6,13 +6,13 @@ from src.model import HiddenVariableModel
 
 
 class GaussianMixtureModel(HiddenVariableModel):
-    def __init__(self, k, d=2, covariance='full', threshold=.01, max_iter=20):
-        super(GaussianMixtureModel, self).__init__()
+    def __init__(self, k, d=2, covariance='full', threshold=.01, max_iter=20, seed=0):
+        super(GaussianMixtureModel, self).__init__(seed)
         self.k = k
         self.d = d
         self.covariance = covariance
 
-        self.tau = None
+        self.tau_log = None
 
         self.pi = None
         self.means = None
@@ -37,29 +37,29 @@ class GaussianMixtureModel(HiddenVariableModel):
         else:
             self.covariances = 10 * torch.eye(d).repeat(self.k, 1, 1).view(self.k, d, d).double()
 
-    def _marginal_likelihood(self, x):
+    def _log_likelihood(self, x):
         if self.covariance == 'isotropic':
             r = [mvn(mean, cov * torch.eye(self.d).double()).log_prob(x) for mean, cov in zip(self.means, self.covariances)]
         else:
             r = [mvn(mean, cov).log_prob(x) for mean, cov in zip(self.means, self.covariances)]
-        return torch.exp(torch.stack(r, dim=1))
+        return torch.stack(r, dim=1)
 
     def expectation(self, x):
-        tau = self._marginal_likelihood(x) * self.pi.view(1,-1)
-        self.tau = tau / tau.sum(dim=1, keepdim=True)
+        tau = self._log_likelihood(x) + torch.log(self.pi.view(1, -1))
+        self.tau_log = tau - torch.logsumexp(tau, dim=1, keepdim=True)
 
     def maximization(self, x):
         n, d = x.shape
-
-        self.pi = self.tau.mean(dim=0)
-        normalization = self.tau.sum(dim=0)
-        self.means = torch.einsum('ni,nj->ji', x, self.tau) / normalization.view(-1,1)
+        tau = torch.exp(self.tau_log)
+        self.pi = tau.mean(dim=0)
+        normalization = tau.sum(dim=0)
+        self.means = torch.einsum('ni,nk->ki', x, tau) / normalization.view(-1, 1)
 
         delta = x.unsqueeze(1) - self.means
         if self.covariance == 'isotropic':
-            self.covariances = torch.einsum('nki,nki,nk->k',delta, delta, self.tau) / d / normalization
+            self.covariances = torch.einsum('nki,nki,nk->k', delta, delta, tau) / d / normalization
         else:
-            self.covariances = torch.einsum('nki,nkj,nk->kij', delta, delta, self.tau) / normalization.view(-1, 1, 1)
+            self.covariances = torch.einsum('nki,nkj,nk->kij', delta, delta, tau) / normalization.view(-1, 1, 1)
 
     @timeit
     def train(self, x, show=False):
@@ -75,41 +75,33 @@ class GaussianMixtureModel(HiddenVariableModel):
                 break
 
     def predict(self, x):
-        return torch.argmax(self._marginal_likelihood(x), dim=1)
+        return torch.argmax(self._log_likelihood(x), dim=1)
 
     def mean_marginal_negative_log_likelihood(self, x):
-        return -torch.max(self._marginal_likelihood(x), dim=1)[0].log_().mean()
+        return -torch.logsumexp(self._log_likelihood(x) + torch.log(self.pi.view(1, -1)), dim=1).mean()
 
     def mean_complete_negative_log_likelihood(self, x):
         self.expectation(x)
-        return  - (self.tau * (torch.log(self._marginal_likelihood(x)) + torch.log(self.pi))).sum(dim=1).mean()
-
+        return -(torch.exp(self.tau_log) * (self._log_likelihood(x) + torch.log(self.pi))).sum(dim=1).mean()
 
 
 if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
-    from src.utils.plot import plot_contours, plot_clusters, plot_ellipses
+    from src.utils.plot import plot_clusters_contours_ellipses
     import matplotlib.pyplot as plt
 
     dataset = EMGaussianDataset("../datasets/data/EMGaussian")
+    x = dataset[0]
+
+    def test_gmm(gmm):
+        gmm.initialize(x)
+        gmm.train(x)
+        plot_clusters_contours_ellipses(gmm, x)
+        plt.show()
+        print(gmm.mean_marginal_negative_log_likelihood(x))
+        print(gmm.mean_complete_negative_log_likelihood(x))
 
     gmm_isotropic = GaussianMixtureModel(4, covariance="isotropic")
-    x = dataset[0]
-    gmm_isotropic.initialize(x)
-    gmm_isotropic.train(x)
-    plot_clusters(gmm_isotropic, x)
-    plot_contours(gmm_isotropic, x)
-    plot_ellipses(gmm_isotropic)
-    plt.show()
-    print(gmm_isotropic.mean_marginal_negative_log_likelihood(x))
-    print(gmm_isotropic.mean_complete_negative_log_likelihood(x))
-
+    test_gmm(gmm_isotropic)
     gmm_full = GaussianMixtureModel(4)
-    gmm_full.initialize(x)
-    gmm_full.train(x)
-    plot_clusters(gmm_full, x)
-    plot_contours(gmm_full, x)
-    plot_ellipses(gmm_full)
-    plt.show()
-    print(gmm_full.mean_marginal_negative_log_likelihood(x))
-    print(gmm_full.mean_complete_negative_log_likelihood(x))
+    test_gmm(gmm_full)

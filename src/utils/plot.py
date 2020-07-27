@@ -37,13 +37,26 @@ def ellipse_data(semimaj=1, semimin=1, phi=0, x_cent=0, y_cent=0, theta_num=1e3,
     return data
 
 
+def plot_info():
+    plt.xlabel(r"$x_1$")
+    plt.ylabel(r"$x_2$")
+    plt.title("EM Gaussian Dataset")
+    plt.axis('scaled')
+
+
+def plot_dataset(x):
+    x = x.numpy()
+    plt.scatter(x[:, 0], x[:, 1], c='black', alpha=.5)
+    plot_info()
+
+
 def plot_clusters(model, x):
     clusters = model.predict(x).numpy()
     x = x.numpy()
     for k in range(model.k):
         plt.scatter(x[clusters == k][:, 0], x[clusters == k][:, 1], c='C' + str(k), alpha=.5)
         plt.scatter(model.means[k][0], model.means[k][1], color="C" + str(k), marker='X', edgecolor="black", s=300)
-    plt.axis('scaled')
+    plot_info()
 
 
 def plot_ellipses(model):
@@ -57,7 +70,7 @@ def plot_ellipses(model):
                                y_cent=model.means[k, 1].numpy(),
                                cov=covariances[k, :, :])
         plt.plot(ellipse[0], ellipse[1], c='C' + str(k))
-    plt.axis('scaled')
+    plot_info()
 
 
 def plot_contours(model, x):
@@ -66,8 +79,8 @@ def plot_contours(model, x):
     min_x, min_y = x.min(axis=0)
 
     n_pts_by_axes = 100
-    xs = np.linspace(min_x, max_x, n_pts_by_axes)
-    ys = np.linspace(min_y, max_y, n_pts_by_axes)
+    xs = np.linspace(min_x - 1, max_x + 1, n_pts_by_axes)
+    ys = np.linspace(min_y - 1, max_y + 1, n_pts_by_axes)
 
     X, Y = np.meshgrid(xs, ys)
     Z = model.predict(torch.from_numpy(np.c_[np.ravel(X), np.ravel(Y)])).numpy()
