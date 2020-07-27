@@ -72,3 +72,9 @@ def plot_contours(model, x):
     X, Y = np.meshgrid(xs, ys)
     Z = model.predict(torch.from_numpy(np.c_[np.ravel(X), np.ravel(Y)])).numpy()
     plt.contour(X, Y, Z.reshape(X.shape), colors='black')
+
+
+def plot_clusters_contours_ellipses(model, x):
+    plot_clusters(model, x)
+    plot_contours(model, x)
+    plot_ellipses(model)

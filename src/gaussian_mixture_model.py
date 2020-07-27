@@ -25,7 +25,7 @@ class GaussianMixtureModel(HiddenVariableModel):
         n, d = data.shape
 
         kmeans = KMeans(k=self.k)
-        kmeans.train(x)
+        kmeans.train(data)
 
         self.means = kmeans.means
 
