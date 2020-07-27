@@ -15,10 +15,10 @@ class EMGaussianDataset(Dataset):
         self.samples = torch.from_numpy(data)
 
     def __len__(self):
-        return len(self.samples)
+        return 1
 
     def __getitem__(self, idx):
-        return self.samples[idx]
+        return self.samples
 
 
 if __name__ == '__main__':

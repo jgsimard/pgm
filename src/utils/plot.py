@@ -22,7 +22,7 @@ def ellipse_data(semimaj=1, semimin=1, phi=0, x_cent=0, y_cent=0, theta_num=1e3,
         phi *= -1
 
     # Generate data for ellipse structure
-    theta = np.linspace(0, 2*np.pi, theta_num)
+    theta = np.linspace(0, 2*np.pi, int(theta_num))
     r = 1 / np.sqrt((np.cos(theta))**2 + (np.sin(theta))**2)
     x = r*np.cos(theta)
     y = r*np.sin(theta)
@@ -49,11 +49,13 @@ def plot_clusters(model, x):
 def plot_ellipses(model):
     if len(model.covariances.shape) != 3:
         covariances = np.tile(np.identity(model.means.shape[1]), (model.k, 1, 1))
-        covariances = covariances * model.covariances[..., np.newaxis, np.newaxis]
+        covariances = covariances * model.covariances.numpy()[..., np.newaxis, np.newaxis]
     else:
-        covariances = model.covariances
+        covariances = model.covariances.numpy()
     for k in range(model.k):
-        ellipse = ellipse_data(x_cent=model.means[k, 0], y_cent=model.means[k, 1], cov=covariances[k, :, :])
+        ellipse = ellipse_data(x_cent=model.means[k, 0].numpy(),
+                               y_cent=model.means[k, 1].numpy(),
+                               cov=covariances[k, :, :])
         plt.plot(ellipse[0], ellipse[1], c='C' + str(k))
     plt.axis('scaled')
 
