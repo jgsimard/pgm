@@ -1,23 +1,18 @@
 import os
 import numpy as np
-import requests, zipfile, io
-
 from torch.utils.data import Dataset
+import torch
+
 
 class EMGaussianDataset(Dataset):
-    def __init__(self, data_root):
-        self.samples = []
-        root = "hwk3data/EMGaussian"
-        filename_train = root + ".train"
-        filename_test = root + ".test"
-        if os.path.isfile(filename_train) and os.path.isfile(filename_test):
-            train = np.loadtxt(filename_train)
-            test = np.loadtxt(filename_test)
+    def __init__(self, data_root, train=True):
+        file = "train.txt" if train else "test.txt"
+        root = os.path.join(data_root, file)
+        if os.path.isfile(root):
+            data = np.loadtxt(root)
         else:
-            r = requests.get("http://www.iro.umontreal.ca/~slacoste/teaching/ift6269/A18/notes/hwk3data.zip")
-            z = zipfile.ZipFile(io.BytesIO(r.content))
-            train = np.loadtxt(z.open(filename_train))
-            test = np.loadtxt(z.open(filename_test))
+            raise FileNotFoundError(f"root not fount at : {data_root}")
+        self.samples = torch.from_numpy(data)
 
     def __len__(self):
         return len(self.samples)
@@ -27,11 +22,6 @@ class EMGaussianDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = EMGaussianDataset('/root/')
+    dataset = EMGaussianDataset('data/EMGaussian')
     print(len(dataset))
     print(dataset[420])
-
-
-    def get_datasets_hw3():
-
-        return train, test

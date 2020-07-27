@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import chi2
 import matplotlib.pyplot as plt
+import torch
 
 
 def ellipse_data(semimaj=1, semimin=1, phi=0, x_cent=0, y_cent=0, theta_num=1e3, ax=None, plot_kwargs=None, cov=None, mass_level=0.9):
@@ -37,7 +38,8 @@ def ellipse_data(semimaj=1, semimin=1, phi=0, x_cent=0, y_cent=0, theta_num=1e3,
 
 
 def plot_clusters(model, x):
-    clusters = model.predict(x)
+    clusters = model.predict(x).numpy()
+    x = x.numpy()
     for k in range(model.k):
         plt.scatter(x[clusters == k][:, 0], x[clusters == k][:, 1], c='C' + str(k), alpha=.5)
         plt.scatter(model.means[k][0], model.means[k][1], color="C" + str(k), marker='X', edgecolor="black", s=300)
@@ -57,6 +59,7 @@ def plot_ellipses(model):
 
 
 def plot_contours(model, x):
+    x = x.numpy()
     max_x, max_y = x.max(axis=0)
     min_x, min_y = x.min(axis=0)
 
@@ -65,5 +68,5 @@ def plot_contours(model, x):
     ys = np.linspace(min_y, max_y, n_pts_by_axes)
 
     X, Y = np.meshgrid(xs, ys)
-    Z = model.predict(np.c_[np.ravel(X), np.ravel(Y)])
-    plt.contour(X, Y, Z.reshape(n_pts_by_axes, n_pts_by_axes), colors='black')
+    Z = model.predict(torch.from_numpy(np.c_[np.ravel(X), np.ravel(Y)])).numpy()
+    plt.contour(X, Y, Z.reshape(X.shape), colors='black')
