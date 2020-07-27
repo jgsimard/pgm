@@ -75,8 +75,7 @@ class GaussianMixtureModel(HiddenVariableModel):
                 break
 
     def predict(self, x):
-        self.expectation(x)
-        return torch.argmax(self.tau, dim=1)
+        return torch.argmax(self._marginal_likelihood(x), dim=1)
 
     def mean_marginal_negative_log_likelihood(self, x):
         return -torch.max(self._marginal_likelihood(x), dim=1)[0].log_().mean()
