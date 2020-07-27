@@ -1,6 +1,6 @@
 from src.kmeans import KMeans
 import torch
-from src.utils.time import timeit, get_time_str
+from src.utils.time import timeit
 from torch.distributions.multivariate_normal import MultivariateNormal as mvn
 from src.model import HiddenVariableModel
 
@@ -42,7 +42,7 @@ class GaussianMixtureModel(HiddenVariableModel):
             r = [mvn(mean, cov * torch.eye(self.d).double()).log_prob(x) for mean, cov in zip(self.means, self.covariances)]
         else:
             r = [mvn(mean, cov).log_prob(x) for mean, cov in zip(self.means, self.covariances)]
-        return torch.stack(r, dim=1).exp_()
+        return torch.exp(torch.stack(r, dim=1))
 
     def expectation(self, x):
         tau = self._marginal_likelihood(x) * self.pi.view(1,-1)
