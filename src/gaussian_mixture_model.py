@@ -51,8 +51,9 @@ class GaussianMixtureModel(HiddenVariableModel):
     def maximization(self, x):
         n, d = x.shape
         tau = torch.exp(self.tau_log)
-        self.pi = tau.mean(dim=0)
         normalization = tau.sum(dim=0)
+
+        self.pi = normalization / n
         self.means = torch.einsum('ni,nk->ki', x, tau) / normalization.view(-1, 1)
 
         delta = x.unsqueeze(1) - self.means
