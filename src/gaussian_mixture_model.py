@@ -6,7 +6,7 @@ from src.model import HiddenVariableModel
 
 
 class GaussianMixtureModel(HiddenVariableModel):
-    def __init__(self, k, d=2, covariance='full', threshold=.01, max_iter=20, seed=0):
+    def __init__(self, k, d=2, covariance='full', threshold=.01, max_iter=20, seed=0, pi=None, means=None, covariances=None):
         super(GaussianMixtureModel, self).__init__(seed)
         self.k = k
         self.d = d
@@ -14,9 +14,9 @@ class GaussianMixtureModel(HiddenVariableModel):
 
         self.tau_log = None
 
-        self.pi = None
-        self.means = None
-        self.covariances = None
+        self.pi = pi
+        self.means = means
+        self.covariances = covariances
 
         self.threshold = threshold
         self.max_iter = max_iter
@@ -85,10 +85,22 @@ class GaussianMixtureModel(HiddenVariableModel):
         self.expectation(x)
         return -(torch.exp(self.tau_log) * (self._log_likelihood(x) + torch.log(self.pi))).sum(dim=1).mean()
 
+    def sample(self, n=1):
+        out = torch.empty((n, self.d))
+        for i in range(n):
+            z_i = torch.multinomial(self.pi, 1)
+            mean = self.means[z_i]
+            covariance = self.covariances[z_i]
+            if self.covariance == 'isotropic':
+                covariance = covariance * torch.eye(self.d)
+            x_i = torch.distributions.MultivariateNormal(mean, covariance).sample()
+            out[i] = x_i
+        return out
+
 
 if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
-    from src.utils.plot import plot_clusters_contours_ellipses
+    from src.utils.plot import plot_clusters_contours_ellipses, plot_dataset
     import matplotlib.pyplot as plt
 
     dataset = EMGaussianDataset("../datasets/data/EMGaussian")
@@ -106,3 +118,7 @@ if __name__ == '__main__':
     test_gmm(gmm_isotropic)
     gmm_full = GaussianMixtureModel(4)
     test_gmm(gmm_full)
+
+    samples = gmm_isotropic.sample(10000)
+    plot_dataset(samples)
+    plt.show()
