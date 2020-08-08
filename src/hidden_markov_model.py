@@ -1,21 +1,25 @@
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal as mvn
-from src.model import HiddenVariableModel
+from src.model import HiddenVariableModel, GenerativeModel, SequenceModel
 from src.gaussian_mixture_model import GaussianMixtureModel
 from src.utils.time import timeit
 
 
 class EmissionDistribution:
-    def __init__(self, k, homework_init=False):
+    def __init__(self, k, dim=1):
         self.k = k
+        self.dim = dim
 
-    def initialize(self, x):
+    def initialize(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def pdf(self, x):
+    def log_prob(self, x):
         raise NotImplementedError()
 
-    def maximization(self, x, gamma):
+    def maximization(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def sample(self, *args, **kwargs):
         raise NotImplementedError()
 
 
@@ -31,8 +35,9 @@ class GaussianEmissionDistribution(EmissionDistribution):
         gmm.train(x)
         self.means = gmm.means
         self.covariances = gmm.covariances
+        self.dim = self.means.shape[1]
 
-    def pdf(self, x):
+    def log_prob(self, x):
         return torch.stack([mvn(mean, cov).log_prob(x) for mean, cov in zip(self.means, self.covariances)], dim=1)
 
     def maximization(self, x, gamma):
@@ -41,10 +46,13 @@ class GaussianEmissionDistribution(EmissionDistribution):
         delta = x.unsqueeze(1) - self.means
         self.covariances = torch.einsum('nki,nkj,nk->kij', delta, delta, gamma) / normalization.view(-1, 1, 1)
 
+    def sample(self, z):
+        return torch.distributions.MultivariateNormal(self.means[z], self.covariances[z]).sample()
 
-class HiddenMarkovModel(HiddenVariableModel):
-    def __init__(self, k, emission_distribution_type=GaussianEmissionDistribution, threshold=1e-3, max_iter=10):
-        super(HiddenMarkovModel, self).__init__()
+
+class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
+    def __init__(self, k, emission_distribution_type=GaussianEmissionDistribution, threshold=1e-3, max_iter=10, seed=0, sequence_length=10):
+        super(HiddenMarkovModel, self).__init__(seed=seed, sequence_length=sequence_length)
         self.k = k
         self.alpha_log = None
         self.beta_log = None
@@ -56,7 +64,8 @@ class HiddenMarkovModel(HiddenVariableModel):
         self.emission_distribution = emission_distribution_type(k)
         self.threshold = threshold
         self.max_iter = max_iter
-        self.mean_marginal_negative_log_likelihood_ = None
+
+        self._marginal_log_likelihood = torch.Tensor(0)
 
     def initialize(self, x):
         self.emission_distribution.initialize(x)
@@ -66,7 +75,7 @@ class HiddenMarkovModel(HiddenVariableModel):
     def forward_backward_log(self, x):
         T, _ = x.shape
 
-        self.emissions_log = self.emission_distribution.pdf(x)
+        self.emissions_log = self.emission_distribution.log_prob(x)
 
         # Forward propagation
         self.alpha_log = torch.empty([T, self.k])
@@ -82,10 +91,8 @@ class HiddenMarkovModel(HiddenVariableModel):
 
         # gamma
         gamma_log = self.alpha_log + self.beta_log
-        # normalize gamma_log
-        likelihood = torch.logsumexp(gamma_log, dim=1, keepdim=True)
-        self.mean_marginal_negative_log_likelihood_ = - torch.mean(likelihood) / T
-        self.gamma_log = (gamma_log - likelihood).double()
+        self._marginal_log_likelihood = torch.logsumexp(gamma_log, dim=1, keepdim=True)
+        self.gamma_log = (gamma_log - self._marginal_log_likelihood).double()
 
     def expectation(self, x):
         T,_ = x.shape
@@ -108,25 +115,26 @@ class HiddenMarkovModel(HiddenVariableModel):
 
         def compute_likelihoods():
             if likelihood:
-                likelihoods_train.append(self.mean_complete_negative_log_likelihood(x_train))
+                likelihoods_train.append(self.normalized_negative_complete_log_likelihood(x_train))
                 if x_test is not None:
-                    likelihoods_test.append(self.mean_complete_negative_log_likelihood(x_test))
+                    likelihoods_test.append(self.normalized_negative_complete_log_likelihood(x_test))
 
         compute_likelihoods()
         for i in range(self.max_iter):
-            old = self.mean_marginal_negative_log_likelihood_
+            old = self._marginal_log_likelihood.mean()
             self.expectation(x_train)
             self.maximization(x_train)
             compute_likelihoods()
             if old is not None:
-                if torch.abs(old - self.mean_marginal_negative_log_likelihood_) < self.threshold:
+                if torch.abs(old - self._marginal_log_likelihood.mean()) < self.threshold:
                     break
         return likelihoods_train, likelihoods_test
 
-    def viterbi(self, x):
+    def predict(self, x):
+        # AKA VITERBI
         T, _ = x.shape
 
-        self.emissions_log = self.emission_distribution.pdf(x)
+        self.emissions_log = self.emission_distribution.log_prob(x)
 
         forward_probs = torch.empty((T, self.k))
         forward_index = torch.empty((T, self.k))
@@ -144,21 +152,25 @@ class HiddenMarkovModel(HiddenVariableModel):
 
         return backtrack_index
 
-    def mean_complete_negative_log_likelihood(self, x):
+    def complete_log_likelihood(self, x):
         self.expectation(x)
         gamma = torch.exp(self.gamma_log)
-        likelihood = torch.sum(gamma * self.emission_distribution.pdf(x))
+        likelihood = torch.sum(gamma * self.emission_distribution.log_prob(x))
         likelihood += torch.sum(torch.exp(self.q_log) * self.transition_matrix_log)
         likelihood += torch.sum(gamma[0] * self.pi_log)
-        return -likelihood / x.shape[0]
+        return likelihood
 
-    def mean_marginal_negative_log_likelihood(self, x):
-        return self.mean_marginal_negative_log_likelihood_
+    def marginal_log_likelihood(self, x):
+        return self._marginal_log_likelihood.mean()
 
-    def mean_negative_log_likelihood_of_most_likely_sequence(self, x):
-        indexes = self.viterbi(x).long().view(-1,1)
-        likelihoods = torch.gather(self.emissions_log, 1,indexes)
-        return -likelihoods.mean()
+    def sample(self, n):
+        out = torch.empty((n, self.sequence_length, self.emission_distribution.dim))
+        for i in range(n):
+            z = torch.multinomial(torch.exp(self.pi_log), 1)
+            for t in range(self.sequence_length):
+                out[i, t] = self.emission_distribution.sample(z)
+                z = torch.multinomial(torch.exp(self.transition_matrix_log)[:,z].view(-1), 1)
+        return out
 
 
 if __name__ == '__main__':
@@ -166,20 +178,22 @@ if __name__ == '__main__':
     from src.utils.plot import plot_contours, plot_clusters, plot_ellipses
     import matplotlib.pyplot as plt
 
-    dataset = EMGaussianDataset("../datasets/data/EMGaussian")
+    x = EMGaussianDataset("../datasets/data/EMGaussian")[0]
 
-    gmm_isotropic = GaussianMixtureModel(4, covariance="isotropic")
-    x = dataset[0]
-
-    hmm = HiddenMarkovModel(4, max_iter=100, threshold=1e-3)
+    hmm = HiddenMarkovModel(4, max_iter=10, threshold=1e-3, sequence_length=200)
     hmm.train(x, likelihood=False)
-    # print("hmm.pi\n", torch.exp(hmm.pi_log))
-    # print("hmm.emission_distribution.means\n", hmm.emission_distribution.means)
-    # print("hmm.emission_distribution.covariances\n", hmm.emission_distribution.covariances)
-    # print("hmm.transition_matrix\n", torch.exp(hmm.transition_matrix_log))
-    print(hmm.mean_complete_negative_log_likelihood(x))
-    print(hmm.mean_marginal_negative_log_likelihood(x))
+    print("hmm.pi\n", torch.exp(hmm.pi_log))
+    print("hmm.emission_distribution.means\n", hmm.emission_distribution.means)
+    print("hmm.emission_distribution.covariances\n", hmm.emission_distribution.covariances)
+    print("hmm.transition_matrix\n", torch.exp(hmm.transition_matrix_log))
+
+    print(hmm.complete_log_likelihood(x))
+    print(hmm.marginal_log_likelihood(x))
+    print(hmm.normalized_negative_complete_log_likelihood(x))
+    print(hmm.normalized_negative_marginal_log_likelihood(x))
+
     # plot_ellipses(hmm.emission_distribution)
-    # hmm.emission_distribution.predict = lambda _: hmm.viterbi(x)
-    # plot_clusters(hmm.emission_distribution, x)
-    # plt.show()
+    hmm.emission_distribution.predict = lambda x: hmm.predict(x)
+    plot_clusters(hmm.emission_distribution, hmm.sample(1)[0], False)
+    plt.show()
+    print(hmm.sample(1)[0].shape)

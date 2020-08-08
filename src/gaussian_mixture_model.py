@@ -2,10 +2,10 @@ from src.kmeans import KMeans
 import torch
 from src.utils.time import timeit
 from torch.distributions.multivariate_normal import MultivariateNormal as mvn
-from src.model import HiddenVariableModel
+from src.model import HiddenVariableModel, GenerativeModel
 
 
-class GaussianMixtureModel(HiddenVariableModel):
+class GaussianMixtureModel(HiddenVariableModel, GenerativeModel):
     def __init__(self, k, d=2, covariance='full', threshold=.01, max_iter=20, seed=0, pi=None, means=None, covariances=None):
         super(GaussianMixtureModel, self).__init__(seed)
         self.k = k
@@ -78,12 +78,12 @@ class GaussianMixtureModel(HiddenVariableModel):
     def predict(self, x):
         return torch.argmax(self._log_likelihood(x), dim=1)
 
-    def mean_marginal_negative_log_likelihood(self, x):
-        return -torch.logsumexp(self._log_likelihood(x) + torch.log(self.pi.view(1, -1)), dim=1).mean()
-
-    def mean_complete_negative_log_likelihood(self, x):
+    def complete_log_likelihood(self, x):
         self.expectation(x)
-        return -(torch.exp(self.tau_log) * (self._log_likelihood(x) + torch.log(self.pi))).sum(dim=1).mean()
+        return (torch.exp(self.tau_log) * (self._log_likelihood(x) + torch.log(self.pi))).sum(dim=1).sum()
+
+    def marginal_log_likelihood(self, x):
+        return torch.logsumexp(self._log_likelihood(x) + torch.log(self.pi.view(1, -1)), dim=1).sum()
 
     def sample(self, n=1):
         out = torch.empty((n, self.d))
@@ -109,16 +109,17 @@ if __name__ == '__main__':
     def test_gmm(gmm):
         gmm.initialize(x)
         gmm.train(x)
-        plot_clusters_contours_ellipses(gmm, x)
-        plt.show()
-        print(gmm.mean_marginal_negative_log_likelihood(x))
-        print(gmm.mean_complete_negative_log_likelihood(x))
+        # plot_clusters_contours_ellipses(gmm, x)
+        # plt.show()
+        print(gmm.normalized_negative_marginal_log_likelihood(x))
+        print(gmm.normalized_negative_complete_log_likelihood(x))
+
 
     gmm_isotropic = GaussianMixtureModel(4, covariance="isotropic")
     test_gmm(gmm_isotropic)
     gmm_full = GaussianMixtureModel(4)
     test_gmm(gmm_full)
 
-    samples = gmm_isotropic.sample(10000)
-    plot_dataset(samples)
-    plt.show()
+    # samples = gmm_isotropic.sample(10000)
+    # plot_dataset(samples)
+    # plt.show()

@@ -50,12 +50,13 @@ def plot_dataset(x):
     plot_info()
 
 
-def plot_clusters(model, x):
+def plot_clusters(model, x, means=True):
     clusters = model.predict(x).numpy()
     x = x.numpy()
     for k in range(model.k):
         plt.scatter(x[clusters == k][:, 0], x[clusters == k][:, 1], c='C' + str(k), alpha=.5)
-        plt.scatter(model.means[k][0], model.means[k][1], color="C" + str(k), marker='X', edgecolor="black", s=300)
+        if means:
+            plt.scatter(model.means[k][0], model.means[k][1], color="C" + str(k), marker='X', edgecolor="black", s=300)
     plot_info()
 
 
