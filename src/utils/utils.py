@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # USEFUL FUNCTIONS
 def augment_features(x):
     return np.c_[np.ones((x.shape[0], 1)), x]

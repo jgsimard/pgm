@@ -1,4 +1,5 @@
 import torch
+
 from src.utils.time import timeit
 
 
@@ -18,9 +19,10 @@ class KMeans:
             self.means = torch.stack([torch.mean(x[labels == j], dim=0) for j in range(self.k)])
 
     def initialization_plus_plus(self, data):
+        # initialization ++
         n, d = data.shape
         means = torch.zeros((self.k, d))
-        means[0, :] = data[torch.randint(n,(1,))]
+        means[0, :] = data[torch.randint(n, (1,))]
         distances = torch.norm(data - means[0, :], dim=1)
         for i in range(1, self.k):
             distances = torch.min(torch.norm(data - means[i], dim=1), distances)

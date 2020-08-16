@@ -1,5 +1,6 @@
 import time
 
+
 def get_time_str(delta_t):
     time_units = ['s', 'ms', 'us']
     k = 0
@@ -17,4 +18,5 @@ def timeit(method):
         result = method(*args, **kwargs)
         print(f"{method.__name__} time : {get_time_str(time.time() - ts)}")
         return result
+
     return timed
