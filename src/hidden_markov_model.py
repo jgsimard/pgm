@@ -3,11 +3,10 @@ import torch
 from src.abstract_models import HiddenVariableModel, GenerativeModel, SequenceModel
 from src.distributions import GaussianDistribution
 from src.mixture_model import MixtureModel
-from src.utils.registery import get_mixture_model
 
 
 class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
-    def __init__(self, k=1, d=2, emission_distribution_type=GaussianDistribution, threshold=1e-3, max_iter=10, seed=0,
+    def __init__(self, k=1, d=2, distribution_type=GaussianDistribution, threshold=1e-3, max_iter=10, seed=0,
                  sequence_length=10):
         super(HiddenMarkovModel, self).__init__(threshold=threshold, max_iter=max_iter, seed=seed, sequence_length=sequence_length)
         self.k = k
@@ -19,28 +18,28 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
         self.q_log = None
         self.pi_log = None
         self.transition_matrix_log = None
-        self.emission_distribution_type = emission_distribution_type
-        self.emission_distribution = emission_distribution_type(k, d)
+        self.distribution_type = distribution_type
+        self.distribution = distribution_type(k, d)
 
         self._marginal_log_likelihood = None
 
     def initialize(self, x):
         # initialize the emission distribution parameters by a mixture model
-        mm = MixtureModel(self.k, self.d, distribution_type=self.emission_distribution_type)
+        mm = MixtureModel(self.k, self.d, distribution_type=self.distribution_type)
         mm.initialize(x)
         mm.train(x)
-        self.emission_distribution = mm.distribution
+        self.distribution = mm.distribution
         # uniform prior on the hmm parameters
         self.transition_matrix_log = torch.log(torch.ones((self.k, self.k)) / self.k)
         self.pi_log = torch.log(torch.ones(self.k) / self.k)
 
     def parameters(self):
-        return torch.exp(self.transition_matrix_log), torch.exp(self.pi_log), *self.emission_distribution.parameters()
+        return torch.exp(self.transition_matrix_log), torch.exp(self.pi_log), *self.distribution.parameters()
 
     def forward_backward_log(self, x):
         T, _ = x.shape
 
-        self.emissions_log = self.emission_distribution.log_prob(x)
+        self.emissions_log = self.distribution.log_prob(x)
 
         # Forward propagation
         self.alpha_log = torch.empty([T, self.k])
@@ -73,13 +72,13 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
     def maximization(self, x):
         self.pi_log = self.gamma_log[0]
         self.transition_matrix_log = torch.logsumexp(self.q_log, dim=0) - torch.logsumexp(self.gamma_log, dim=0)
-        self.emission_distribution.maximization(x, torch.exp(self.gamma_log))
+        self.distribution.maximization(x, torch.exp(self.gamma_log))
 
     def predict(self, x):
         # AKA VITERBI
         T, _ = x.shape
 
-        self.emissions_log = self.emission_distribution.log_prob(x)
+        self.emissions_log = self.distribution.log_prob(x)
 
         forward_probs = torch.empty((T, self.k))
         forward_index = torch.empty((T, self.k))
@@ -100,7 +99,7 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
     def complete_log_likelihood(self, x):
         self.expectation(x)
         gamma = torch.exp(self.gamma_log)
-        likelihood = torch.sum(gamma * self.emission_distribution.log_prob(x))
+        likelihood = torch.sum(gamma * self.distribution.log_prob(x))
         likelihood += torch.sum(torch.exp(self.q_log) * self.transition_matrix_log)
         likelihood += torch.sum(gamma[0] * self.pi_log)
         return likelihood
@@ -110,11 +109,11 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
         return self._marginal_log_likelihood.mean()
 
     def sample(self, n):
-        out = torch.empty((n, self.sequence_length, self.emission_distribution.d))
+        out = torch.empty((n, self.sequence_length, self.distribution.d))
         for i in range(n):
             z = torch.multinomial(torch.exp(self.pi_log), 1)
             for t in range(self.sequence_length):
-                out[i, t] = self.emission_distribution.sample(z)
+                out[i, t] = self.distribution.sample(z)
                 z = torch.multinomial(torch.exp(self.transition_matrix_log)[:, z].view(-1), 1)
         return out
 
@@ -130,8 +129,8 @@ if __name__ == '__main__':
     hmm.initialize(x)
     hmm.train(x, likelihood=False)
     print("hmm.pi\n", torch.exp(hmm.pi_log))
-    print("hmm.emission_distribution.means\n", hmm.emission_distribution.means)
-    print("hmm.emission_distribution.covariances\n", hmm.emission_distribution.covariances)
+    print("hmm.distribution.means\n", hmm.distribution.means)
+    print("hmm.distribution.covariances\n", hmm.distribution.covariances)
     print("hmm.transition_matrix\n", torch.exp(hmm.transition_matrix_log))
 
     print(hmm.complete_log_likelihood(x))
@@ -139,9 +138,9 @@ if __name__ == '__main__':
     print(hmm.normalized_negative_complete_log_likelihood(x))
     print(hmm.normalized_negative_marginal_log_likelihood(x))
 
-    plot_ellipses(hmm.emission_distribution)
-    hmm.emission_distribution.predict = lambda x: hmm.predict(x)
-    plot_clusters(hmm.emission_distribution, x)
+    plot_ellipses(hmm.distribution)
+    hmm.distribution.predict = lambda x: hmm.predict(x)
+    plot_clusters(hmm.distribution, x)
     # plot_clusters(hmm.emission_distribution, hmm.sample(1)[0], False)
     plt.show()
     # print(hmm.sample(1)[0].shape)
