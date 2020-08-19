@@ -1,16 +1,23 @@
 import torch
 
 from src.abstract_models import HiddenVariableModel, GenerativeModel
+from src.distributions import GaussianDistribution
+from src.utils.registery import get_distribution_initialization
 
 
 class MixtureModel(HiddenVariableModel, GenerativeModel):
-    def __init__(self, k, d=2, threshold=.01, max_iter=20, seed=0):
+    def __init__(self, k, d=2, distribution_type=GaussianDistribution,  threshold=.01, max_iter=20, seed=0):
         super(MixtureModel, self).__init__(threshold, max_iter, seed)
         self.k = k
         self.d = d
-        self.distribution = None
+        self.distribution_type = distribution_type
+        self.distribution = distribution_type(k,d)
         self.tau_log = None
         self.pi = None
+
+    def initialize(self, data):
+        initializer = get_distribution_initialization(self.distribution.__class__)
+        initializer(self, data)
 
     def parameters(self):
         return self.pi, *self.distribution.parameters()
@@ -41,3 +48,32 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
             x_i = self.distribution.sample(z_i)
             out[i] = x_i
         return out
+
+if __name__ == '__main__':
+    from datasets.em_gaussian import EMGaussianDataset
+    from src.utils.plot import plot_clusters_contours_ellipses, plot_dataset
+    import matplotlib.pyplot as plt
+
+    dataset = EMGaussianDataset("../datasets/data/EMGaussian")
+    x = dataset[0]
+
+
+    def _gmm(gmm):
+        gmm.initialize(x)
+        gmm.train(x)
+        # gmm.distribution.predict = lambda x: gmm.predict(x)
+        # plot_clusters_contours_ellipses(gmm.distribution, x)
+        # plt.show()
+        print(gmm.normalized_negative_marginal_log_likelihood(x))
+        print(gmm.normalized_negative_complete_log_likelihood(x))
+
+
+    # gmm_isotropic = GaussianMixtureModel(4, covariance_type="isotropic")
+    gmm_isotropic = MixtureModel(4, distribution_type=lambda k,d: GaussianDistribution(k,d, covariance_type='isotropic'))
+    _gmm(gmm_isotropic)
+    gmm_full = MixtureModel(4, distribution_type=GaussianDistribution)
+    _gmm(gmm_full)
+
+    # samples = gmm_isotropic.sample(10000)
+    # plot_dataset(samples)
+    # plt.show()

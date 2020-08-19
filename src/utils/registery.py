@@ -1,7 +1,7 @@
 from src.distributions import GaussianDistribution
-from src.gaussian_mixture_model import GaussianMixtureModel
+from src.initializers import gaussian_mixture_model_initializer
 
 
-def get_mixture_model(dist):
+def get_distribution_initialization(dist):
     if dist == GaussianDistribution:
-        return GaussianMixtureModel
+        return gaussian_mixture_model_initializer

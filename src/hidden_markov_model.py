@@ -2,6 +2,7 @@ import torch
 
 from src.abstract_models import HiddenVariableModel, GenerativeModel, SequenceModel
 from src.distributions import GaussianDistribution
+from src.mixture_model import MixtureModel
 from src.utils.registery import get_mixture_model
 
 
@@ -25,9 +26,7 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
 
     def initialize(self, x):
         # initialize the emission distribution parameters by a mixture model
-        mm = get_mixture_model(self.emission_distribution.__class__)
-        mm = mm(self.k, self.d)
-        mm.distribution = self.emission_distribution_type(self.k, self.d) #for constraint distribution types
+        mm = MixtureModel(self.k, self.d, distribution_type=self.emission_distribution_type)
         mm.initialize(x)
         mm.train(x)
         self.emission_distribution = mm.distribution
