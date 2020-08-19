@@ -13,7 +13,7 @@ class Model(ABC):
         self.max_iter = max_iter
 
     def initialize(self, data):
-        pass
+        raise NotImplementedError()
 
     def train(self, *args, **kwargs):
         raise NotImplementedError()

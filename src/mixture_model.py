@@ -13,7 +13,7 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
         self.distribution_type = distribution_type
         self.distribution = distribution_type(k,d)
         self.tau_log = None
-        self.pi = None
+        self.pi = torch.ones(self.k) / self.k # uniform prior
 
     def initialize(self, data):
         initializer = get_distribution_initialization(self.distribution.__class__)
@@ -49,31 +49,25 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
             out[i] = x_i
         return out
 
+
 if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
-    from src.utils.plot import plot_clusters_contours_ellipses, plot_dataset
+    from src.utils.plot import plot_clusters_contours_ellipses
     import matplotlib.pyplot as plt
 
-    dataset = EMGaussianDataset("../datasets/data/EMGaussian")
-    x = dataset[0]
-
+    x = EMGaussianDataset("../datasets/data/EMGaussian")[0]
 
     def _gmm(gmm):
         gmm.initialize(x)
         gmm.train(x)
-        # gmm.distribution.predict = lambda x: gmm.predict(x)
-        # plot_clusters_contours_ellipses(gmm.distribution, x)
-        # plt.show()
-        print(gmm.normalized_negative_marginal_log_likelihood(x))
-        print(gmm.normalized_negative_complete_log_likelihood(x))
+        gmm.distribution.predict = lambda x: gmm.predict(x)
+        plot_clusters_contours_ellipses(gmm.distribution, x)
+        plt.show()
+        print(gmm.distribution.covariance_type)
+        print(f"normalized_negative_marginal_log_likelihood={gmm.normalized_negative_marginal_log_likelihood(x)}")
+        print(f"normalized_negative_complete_log_likelihood={gmm.normalized_negative_complete_log_likelihood(x)}")
 
-
-    # gmm_isotropic = GaussianMixtureModel(4, covariance_type="isotropic")
     gmm_isotropic = MixtureModel(4, distribution_type=lambda k,d: GaussianDistribution(k,d, covariance_type='isotropic'))
     _gmm(gmm_isotropic)
     gmm_full = MixtureModel(4, distribution_type=GaussianDistribution)
     _gmm(gmm_full)
-
-    # samples = gmm_isotropic.sample(10000)
-    # plot_dataset(samples)
-    # plt.show()

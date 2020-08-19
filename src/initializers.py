@@ -7,6 +7,7 @@ def gaussian_mixture_model_initializer(mm, data):
     n, d = data.shape
 
     kmeans = KMeans(k=mm.k)
+    kmeans.initialize(data)
     kmeans.train(data)
 
     clusters = kmeans.predict(data)
