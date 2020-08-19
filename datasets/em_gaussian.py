@@ -24,4 +24,4 @@ class EMGaussianDataset(Dataset):
 if __name__ == '__main__':
     dataset = EMGaussianDataset('data/EMGaussian')
     print(len(dataset))
-    print(dataset[420])
+    print(dataset[0])

@@ -18,6 +18,7 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
     def initialize(self, data):
         initializer = get_distribution_initialization(self.distribution.__class__)
         initializer(self, data)
+        self.pi = torch.ones(self.k) / self.k  # uniform prior
 
     def parameters(self):
         return self.pi, *self.distribution.parameters()
@@ -54,6 +55,7 @@ if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
     from src.utils.plot import plot_clusters_contours_ellipses
     import matplotlib.pyplot as plt
+    from functools import partial
 
     x = EMGaussianDataset("../datasets/data/EMGaussian")[0]
 
@@ -67,7 +69,7 @@ if __name__ == '__main__':
         print(f"normalized_negative_marginal_log_likelihood={gmm.normalized_negative_marginal_log_likelihood(x)}")
         print(f"normalized_negative_complete_log_likelihood={gmm.normalized_negative_complete_log_likelihood(x)}")
 
-    gmm_isotropic = MixtureModel(4, distribution_type=lambda k,d: GaussianDistribution(k,d, covariance_type='isotropic'))
+    gmm_isotropic = MixtureModel(4, distribution_type= partial(GaussianDistribution, covariance_type='isotropic'))
     _gmm(gmm_isotropic)
     gmm_full = MixtureModel(4, distribution_type=GaussianDistribution)
     _gmm(gmm_full)

@@ -14,11 +14,11 @@ class KMeans(HiddenVariableModel):
         # initialization ++
         n, d = data.shape
         means = torch.zeros((self.k, d))
-        means[0, :] = data[torch.randint(n, (1,))]
-        distances = torch.norm(data - means[0, :], dim=1)
+        means[0] = data[torch.randint(n, (1,))]
+        distances = torch.norm(data - means[0], dim=1)**2
         for i in range(1, self.k):
-            distances = torch.min(torch.norm(data - means[i], dim=1), distances)
-            means[i, :] = data[torch.multinomial(distances, 1)]
+            distances = torch.min(torch.norm(data - means[i], dim=1)**2, distances)
+            means[i] = data[torch.multinomial(distances, 1)]
         self.means = means
 
     def expectation(self, x):
@@ -30,8 +30,12 @@ class KMeans(HiddenVariableModel):
     def train(self, x_train, x_test=None, likelihood=False):
         old_loss = self.loss(x_train)
         for i in range(self.max_iter):
+            # plot_clusters(kmeans, x)
+            # plot_contours(kmeans, x)
+            # plt.show()
             self.expectation(x_train)
             self.maximization(x_train)
+
             new_loss = self.loss(x_train)
             if torch.abs(new_loss - old_loss) < self.threshold:
                 break

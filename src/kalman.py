@@ -11,11 +11,6 @@ class Kalman(HiddenVariableModel, GenerativeModel, SequenceModel):
         self.dim_x = dim_x
         self.dim_y = dim_y
 
-        self.transition_matrix = None
-        self.process_noise_matrix = None
-        self.observation_matrix = None
-        self.observation_noise = None
-
         self.A = torch.empty((self.dim_x, self.dim_x))
         self.Q = torch.empty((self.dim_x, self.dim_x))
         self.C = torch.empty((self.dim_y, self.dim_x))
