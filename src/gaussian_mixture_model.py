@@ -6,7 +6,7 @@ from src.mixture_model import MixtureModel
 
 
 class GaussianMixtureModel(MixtureModel):
-    def __init__(self, k, d=2, covariance_type='full', threshold=.01, max_iter=20, seed=0):
+    def __init__(self, k, d=2, covariance_type='full', threshold=.00001, max_iter=20, seed=0):
         super(GaussianMixtureModel, self).__init__(k, d, threshold, max_iter, seed)
         self.distribution = GaussianDistribution(k, d, covariance_type)
 
@@ -21,11 +21,13 @@ class GaussianMixtureModel(MixtureModel):
 
         # gaussian dist parameters init
         self.distribution.means = kmeans.means
-        self.distribution.covariances *= 1000  # high cov is better for initialization
+        self.distribution.covariances *= 10  # high cov is better for initialization
 
 
 if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
+    from src.utils.plot import plot_clusters_contours_ellipses, plot_dataset
+    import matplotlib.pyplot as plt
 
     dataset = EMGaussianDataset("../datasets/data/EMGaussian")
     x = dataset[0]
@@ -34,7 +36,8 @@ if __name__ == '__main__':
     def test_gmm(gmm):
         gmm.initialize(x)
         gmm.train(x)
-        # plot_clusters_contours_ellipses(gmm, x)
+        # gmm.distribution.predict = lambda x: gmm.predict(x)
+        # plot_clusters_contours_ellipses(gmm.distribution, x)
         # plt.show()
         print(gmm.normalized_negative_marginal_log_likelihood(x))
         print(gmm.normalized_negative_complete_log_likelihood(x))

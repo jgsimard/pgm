@@ -6,9 +6,9 @@ from src.utils.registery import get_mixture_model
 
 
 class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
-    def __init__(self, k=1, d=2, emission_distribution=GaussianDistribution, threshold=1e-3, max_iter=10, seed=0,
+    def __init__(self, k=1, d=2, emission_distribution_type=GaussianDistribution, threshold=1e-3, max_iter=10, seed=0,
                  sequence_length=10):
-        super(HiddenMarkovModel, self).__init__(seed=seed, sequence_length=sequence_length)
+        super(HiddenMarkovModel, self).__init__(threshold=threshold, max_iter=max_iter, seed=seed, sequence_length=sequence_length)
         self.k = k
         self.d = d
         self.alpha_log = None
@@ -18,9 +18,8 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
         self.q_log = None
         self.pi_log = None
         self.transition_matrix_log = None
-        self.emission_distribution = emission_distribution(k, d)
-        self.threshold = threshold
-        self.max_iter = max_iter
+        self.emission_distribution_type = emission_distribution_type
+        self.emission_distribution = emission_distribution_type(k, d)
 
         self._marginal_log_likelihood = None
 
@@ -28,10 +27,10 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
         # initialize the emission distribution parameters by a mixture model
         mm = get_mixture_model(self.emission_distribution.__class__)
         mm = mm(self.k, self.d)
+        mm.distribution = self.emission_distribution_type(self.k, self.d) #for constraint distribution types
         mm.initialize(x)
         mm.train(x)
         self.emission_distribution = mm.distribution
-
         # uniform prior on the hmm parameters
         self.transition_matrix_log = torch.log(torch.ones((self.k, self.k)) / self.k)
         self.pi_log = torch.log(torch.ones(self.k) / self.k)
@@ -123,10 +122,12 @@ class HiddenMarkovModel(HiddenVariableModel, GenerativeModel, SequenceModel):
 
 if __name__ == '__main__':
     from datasets.em_gaussian import EMGaussianDataset
+    from src.utils.plot import plot_clusters, plot_ellipses
+    import matplotlib.pyplot as plt
 
     x = EMGaussianDataset("../datasets/data/EMGaussian")[0]
 
-    hmm = HiddenMarkovModel(k=4, d=2, max_iter=10, threshold=1e-3, sequence_length=200)
+    hmm = HiddenMarkovModel(k=4, d=2, max_iter=10, threshold=1e-3, sequence_length=200, seed=100)
     hmm.initialize(x)
     hmm.train(x, likelihood=False)
     print("hmm.pi\n", torch.exp(hmm.pi_log))
@@ -139,8 +140,9 @@ if __name__ == '__main__':
     print(hmm.normalized_negative_complete_log_likelihood(x))
     print(hmm.normalized_negative_marginal_log_likelihood(x))
 
-    # plot_ellipses(hmm.emission_distribution)
+    plot_ellipses(hmm.emission_distribution)
     hmm.emission_distribution.predict = lambda x: hmm.predict(x)
+    plot_clusters(hmm.emission_distribution, x)
     # plot_clusters(hmm.emission_distribution, hmm.sample(1)[0], False)
-    # plt.show()
+    plt.show()
     # print(hmm.sample(1)[0].shape)

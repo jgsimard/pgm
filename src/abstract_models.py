@@ -6,9 +6,9 @@ from src.utils.time import timeit
 
 
 class Model(ABC):
-    def __init__(self, threshold=1e-3, max_iter=10, seed=0, ):
+    def __init__(self, threshold=1e-3, max_iter=10, seed=0):
         self.seed = seed
-        torch.manual_seed(seed)
+        torch.manual_seed(self.seed)
         self.threshold = threshold
         self.max_iter = max_iter
 
@@ -31,8 +31,8 @@ class GenerativeModel(Model, ABC):
 
 
 class SequenceModel(Model, ABC):
-    def __init__(self, seed=0, sequence_length=1):
-        super(SequenceModel, self).__init__(seed)
+    def __init__(self, threshold=1e-3, max_iter=10, seed=0, sequence_length=1):
+        super(SequenceModel, self).__init__(threshold, max_iter, seed)
         self.sequence_length = sequence_length
 
 
@@ -55,7 +55,7 @@ class HiddenVariableModel(Model, ABC):
     def normalized_negative_marginal_log_likelihood(self, x):
         return - self.marginal_log_likelihood(x) / x.shape[0]
 
-    @timeit
+    # @timeit
     def train(self, x_train, x_test=None, likelihood=False):
         likelihoods_train, likelihoods_test = [], []
 
@@ -72,8 +72,6 @@ class HiddenVariableModel(Model, ABC):
             self.expectation(x_train)
             self.maximization(x_train)
             compute_likelihoods()
-
-            if max([torch.norm(param - old_param) for param, old_param in
-                    zip(self.parameters(), old_parameters)]) < self.threshold:
+            if max([torch.norm(param - old_param) for param, old_param in zip(self.parameters(), old_parameters)]) < self.threshold:
                 break
         return likelihoods_train, likelihoods_test

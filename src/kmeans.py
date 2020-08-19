@@ -9,7 +9,7 @@ class KMeans:
         self.means = None
         self.max_iter = max_iter
 
-    @timeit
+    # @timeit
     def train(self, x):
         self.means = self.initialization_plus_plus(x)
         for i in range(self.max_iter):
