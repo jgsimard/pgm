@@ -58,19 +58,21 @@ def plot_clusters(model, x, means=True):
     for k in range(model.k):
         plt.scatter(x[clusters == k][:, 0], x[clusters == k][:, 1], c='C' + str(k), alpha=.5)
         if means:
-            plt.scatter(model.means[k][0], model.means[k][1], color="C" + str(k), marker='X', edgecolor="black", s=300)
+            plt.scatter(model.means[k][0].detach().numpy(),
+                        model.means[k][1].detach().numpy(),
+                        color="C" + str(k), marker='X', edgecolor="black", s=300)
     plot_info()
 
 
 def plot_ellipses(model):
     if len(model.covariances.shape) != 3:
         covariances = np.tile(np.identity(model.means.shape[1]), (model.k, 1, 1))
-        covariances = covariances * model.covariances.numpy()[..., np.newaxis, np.newaxis]
+        covariances = covariances * model.covariances.detach().numpy()[..., np.newaxis, np.newaxis]
     else:
-        covariances = model.covariances.numpy()
+        covariances = model.covariances.detach().numpy()
     for k in range(model.k):
-        ellipse = ellipse_data(x_cent=model.means[k, 0].numpy(),
-                               y_cent=model.means[k, 1].numpy(),
+        ellipse = ellipse_data(x_cent=model.means[k, 0].detach().numpy(),
+                               y_cent=model.means[k, 1].detach().numpy(),
                                cov=covariances[k, :, :])
         plt.plot(ellipse[0], ellipse[1], c='C' + str(k))
     plot_info()

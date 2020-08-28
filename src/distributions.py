@@ -23,16 +23,16 @@ class Distribution:
 class GaussianDistribution(Distribution):
     def __init__(self, k, d, covariance_type='full'):
         super(GaussianDistribution, self).__init__(k, d)
-        self.means = torch.zeros((k, d))
+        self.means = torch.zeros((k, d), requires_grad=True)
 
         if covariance_type not in ['isotropic', 'full']:
             raise NotImplementedError(f"Gaussian type {covariance_type} is not implemented")
         self.covariance_type = covariance_type
 
         if self.covariance_type == 'isotropic':
-            self.covariances = torch.ones(self.k).double()
+            self.covariances = torch.ones(self.k, requires_grad=True).double()
         elif self.covariance_type == 'full':
-            self.covariances = torch.eye(d).repeat(self.k, 1, 1).view(self.k, d, d).double()
+            self.covariances = torch.eye(d, requires_grad=True).repeat(self.k, 1, 1).view(self.k, d, d).double().requires_grad_()
 
     def log_prob(self, x):
         if self.covariance_type == 'isotropic':

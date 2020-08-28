@@ -13,7 +13,7 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
         self.distribution_type = distribution_type
         self.distribution = distribution_type(k,d)
         self.tau_log = None
-        self.pi = torch.ones(self.k) / self.k # uniform prior
+        self.pi = (torch.ones(self.k) / self.k).requires_grad_()# uniform prior
 
     def initialize(self, data):
         initializer = get_distribution_initialization(self.distribution.__class__)
@@ -21,7 +21,9 @@ class MixtureModel(HiddenVariableModel, GenerativeModel):
         self.pi = torch.ones(self.k) / self.k  # uniform prior
 
     def parameters(self):
-        return self.pi, *self.distribution.parameters()
+        return [self.pi]
+        # # return [*self.distribution.parameters()]
+        # return self.pi, *self.distribution.parameters()
 
     def expectation(self, x):
         tau = self.distribution.log_prob(x) + torch.log(self.pi.view(1, -1))
@@ -62,14 +64,33 @@ if __name__ == '__main__':
     def _gmm(gmm):
         gmm.initialize(x)
         gmm.train(x)
-        gmm.distribution.predict = lambda x: gmm.predict(x)
-        plot_clusters_contours_ellipses(gmm.distribution, x)
-        plt.show()
+        # gmm.distribution.predict = lambda x: gmm.predict(x)
+        # plot_clusters_contours_ellipses(gmm.distribution, x)
+        # plt.show()
         print(gmm.distribution.covariance_type)
         print(f"normalized_negative_marginal_log_likelihood={gmm.normalized_negative_marginal_log_likelihood(x)}")
         print(f"normalized_negative_complete_log_likelihood={gmm.normalized_negative_complete_log_likelihood(x)}")
 
-    gmm_isotropic = MixtureModel(4, distribution_type= partial(GaussianDistribution, covariance_type='isotropic'))
-    _gmm(gmm_isotropic)
-    gmm_full = MixtureModel(4, distribution_type=GaussianDistribution)
-    _gmm(gmm_full)
+    # gmm_isotropic = MixtureModel(4, distribution_type= partial(GaussianDistribution, covariance_type='isotropic'))
+    # _gmm(gmm_isotropic)
+    # gmm_full = MixtureModel(4, distribution_type=GaussianDistribution)
+    # _gmm(gmm_full)
+
+    import torch.optim as optim
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    gmm = MixtureModel(4, distribution_type=GaussianDistribution)
+    optimizer = optim.SGD(gmm.parameters(), lr=0.001, momentum=0.9)
+
+    for epoch in range(10):  # loop over the dataset multiple times
+        optimizer.zero_grad()
+        loss = gmm.normalized_negative_complete_log_likelihood(x)
+        print(loss, gmm.pi)
+        print(gmm.pi.grad)
+        loss.backward()
+        print("lol", gmm.pi.grad)
+        optimizer.step()
+        # print(loss)
+    print('Finished Training')
+
